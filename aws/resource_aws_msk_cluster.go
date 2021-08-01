@@ -526,6 +526,14 @@ func resourceAwsMskClusterRead(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	d.Set("zookeeper_connect_string", sortMskClusterEndpoints(aws.StringValue(cluster.ZookeeperConnectString)))
+	
+	nodesOut, err := conn.ListNodes(&kafka.ListNodesInput{
+		ClusterArn: aws.String(d.Id()),
+	})
+	if err != nil {
+		return fmt.Errorf("failed requesting nodes list for %q : %s", d.Id(), err)
+	}
+	d.Set("node_endpoints", sortMskClusterEndpoints(aws.StringValue(brokerOut.BootstrapBrokerString)))
 
 	return nil
 }
@@ -1209,6 +1217,23 @@ func flattenMskLoggingInfoBrokerLogsS3(e *kafka.S3) []map[string]interface{} {
 		"prefix":  aws.StringValue(e.Prefix),
 	}
 
+	return []map[string]interface{}{m}
+}
+
+func flattenMskNodesListEndpoints(n *kafka.ListNodesOutput) []map[string]interface{} {
+
+	if n == nil {
+		return []map[string]interface{}{}
+	}
+
+	m := map[string]interface{}{
+		"endpoints":  flattenStringList(n.nodeInfoList),
+	}
+	if b.StorageInfo != nil {
+		if b.StorageInfo.EbsStorageInfo != nil {
+			m["ebs_volume_size"] = int(aws.Int64Value(b.StorageInfo.EbsStorageInfo.VolumeSize))
+		}
+	}
 	return []map[string]interface{}{m}
 }
 
